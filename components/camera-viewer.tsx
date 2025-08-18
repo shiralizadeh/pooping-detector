@@ -6,35 +6,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Camera, CameraOff } from "lucide-react";
 import { PoopingDetector } from "@/lib/pooping-detector";
+import { DetectedObject } from "@tensorflow-models/coco-ssd";
+import { DetectionEvent } from "./event-logger";
+import _ from "lodash";
 
-export interface DetectionEvent {
-  id: string;
-  timestamp: Date;
-  type: "detection" | "warning" | "alert";
-  message: string;
-  confidence?: number;
-}
-
-export default function CameraViewer() {
+export default function CameraViewer({
+  onEvent,
+}: {
+  onEvent: (detectionEvent: DetectionEvent) => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [events, setEvents] = useState<DetectionEvent[]>([]);
 
   const logEvent = (
     type: DetectionEvent["type"],
     message: string,
-    confidence?: number
+    people?: DetectedObject[],
+    dogs?: DetectedObject[]
   ) => {
+    const key = [type, people?.length, dogs?.length].join(",");
+
+    console.log({ key });
+
     const newEvent: DetectionEvent = {
-      id: Date.now().toString(),
+      id: _.times(16, () => ((Math.random() * 0xf) << 0).toString(16)).join(""),
       timestamp: new Date(),
       type,
       message,
-      confidence,
+      key,
+      people,
+      dogs,
     };
-    setEvents((prev) => [newEvent, ...prev].slice(0, 50)); // Keep only last 50 events
+
+    onEvent(newEvent);
   };
 
   const startCamera = async () => {
@@ -50,24 +56,16 @@ export default function CameraViewer() {
       if (videoRef.current) {
         setIsStreaming(true);
 
-        const poopingDetector = new PoopingDetector();
-
-        const { videoStream } = await poopingDetector.init({
+        const poopingDetector = new PoopingDetector({
           videoElement: videoRef.current,
         });
 
-        logEvent(
-          "detection",
-          "Camera feed active - monitoring for suspicious activity"
-        );
-
-        setTimeout(() => {
-          logEvent("warning", "Suspicious movement detected", 0.7);
-        }, 3000);
-
-        setTimeout(() => {
-          logEvent("alert", "High probability detection - ALERT!", 0.95);
-        }, 8000);
+        await poopingDetector.init();
+        await poopingDetector.start({
+          onEvent: (people: DetectedObject[], dogs: DetectedObject[]) => {
+            logEvent("detected", "Camera - Object Detected", people, dogs);
+          },
+        });
       }
     } catch (err) {
       console.error("Error accessing camera:", err);

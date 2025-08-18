@@ -1,23 +1,29 @@
 import * as CocoSSD from "@tensorflow-models/coco-ssd";
+import { DetectedObject, ObjectDetection } from "@tensorflow-models/coco-ssd";
+import _ from "lodash";
 import "@tensorflow/tfjs-backend-cpu";
 import "@tensorflow/tfjs-backend-webgl";
 
 export class PoopingDetector {
   videoElement: HTMLVideoElement;
-  videoStream: any;
-  model: any;
+  videoStream?: MediaStream;
+  model?: ObjectDetection;
 
-  constructor() {}
+  lastDetectionTick?: number;
 
-  async init({ videoElement }: { videoElement: HTMLVideoElement }) {
+  constructor({ videoElement }: { videoElement: HTMLVideoElement }) {
+    this.videoElement = videoElement;
+  }
+
+  get isStopped() {
+    return this.videoElement.readyState == 0;
+  }
+
+  async init() {
     const [model, videoStream] = await Promise.all([
       this.setupModel(),
-      this.setupCamera(videoElement),
+      this.setupCamera(),
     ]);
-
-    this.videoElement.addEventListener("loadeddata", async () => {
-      this.start();
-    });
 
     return {
       model,
@@ -25,7 +31,7 @@ export class PoopingDetector {
     };
   }
 
-  async setupCamera(videoElement: HTMLVideoElement) {
+  async setupCamera() {
     const constraints = {
       video: {
         width: { ideal: 1280 },
@@ -35,10 +41,9 @@ export class PoopingDetector {
     };
 
     this.videoStream = await navigator.mediaDevices.getUserMedia(constraints);
-    this.videoElement = videoElement;
 
-    videoElement.srcObject = this.videoStream;
-    videoElement.play();
+    this.videoElement.srcObject = this.videoStream;
+    this.videoElement.play();
 
     return this.videoStream;
   }
@@ -49,21 +54,50 @@ export class PoopingDetector {
     return this.model;
   }
 
-  async start() {
-    const detect = () => {
-      if (this.videoElement.readyState == 0) return;
+  isPeopleDogsDetected(predictions: DetectedObject[]) {
+    const people = _.filter(
+      predictions,
+      (item: DetectedObject) => item.class == "person" && item.score >= 0.6
+    );
 
-      this.model.detect(this.videoElement).then(function (predictions: any) {
-        console.log(
-          predictions.map((item: any) => item.class).toString(),
-          predictions
-        );
+    const dogs = _.filter(
+      predictions,
+      (item: DetectedObject) =>
+        item.class == "potted plant" && item.score >= 0.6
+    );
+
+    console.log(predictions.map((item) => item.class).toString());
+
+    return {
+      isDetected: people.length > 0 && dogs.length > 0,
+      people,
+      dogs,
+    };
+  }
+
+  async start({
+    onEvent,
+  }: {
+    onEvent: (people: DetectedObject[], dogs: DetectedObject[]) => void;
+  }) {
+    const detect = () => {
+      if (this.isStopped) return;
+
+      this.model?.detect(this.videoElement).then((predictions) => {
+        const { isDetected, people, dogs } =
+          this.isPeopleDogsDetected(predictions);
+
+        if (isDetected) {
+          onEvent(people, dogs);
+        }
 
         requestAnimationFrame(() => detect());
       });
     };
 
-    detect();
+    this.videoElement.addEventListener("loadeddata", async () => {
+      detect();
+    });
   }
 
   async stop() {}

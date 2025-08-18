@@ -1,7 +1,12 @@
+"use client";
+
 import CameraViewer from "@/components/camera-viewer";
-import EventLogger from "@/components/event-logger";
+import EventLogger, { DetectionEvent } from "@/components/event-logger";
+import { useState } from "react";
 
 export default function Home() {
+  const [events, setEvents] = useState<DetectionEvent[]>([]);
+
   return (
     <main className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
@@ -13,12 +18,28 @@ export default function Home() {
             Let's detect and warn them before they do it!
           </p>
         </div>
-        <div className="flex flex-col md:flex-row gap-6">
+        <div className="flex flex-col items-stretch md:flex-row gap-6">
           <div className="w-full md:w-1/2">
-            <CameraViewer />
+            <CameraViewer
+              onEvent={(newEvent) => {
+                if (newEvent.type == "detected" || newEvent.type == "warning") {
+                  setEvents((events) => {
+                    const preEvent = events[0];
+
+                    if (preEvent.key == newEvent.key) {
+                      return [newEvent, ...events.slice(1)];
+                    } else {
+                      return [newEvent, ...events];
+                    }
+                  });
+                } else {
+                  setEvents((events) => [newEvent, ...events]);
+                }
+              }}
+            />
           </div>
           <div className="w-full md:w-1/2">
-            <EventLogger />
+            <EventLogger events={events} />
           </div>
         </div>
       </div>
