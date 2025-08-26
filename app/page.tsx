@@ -39,7 +39,7 @@ export default function Home() {
             />
           </div>
           <div className="w-full md:w-1/2">
-            <EventLogger events={events} />
+            <EventLogger events={events} onClearEvents={() => setEvents([])} />
           </div>
         </div>
       </div>

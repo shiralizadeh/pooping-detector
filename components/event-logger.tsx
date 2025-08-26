@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertTriangle, Eye, Trash2, Clock } from "lucide-react";
+import { AlertTriangle, Eye, Trash2, Clock, Info } from "lucide-react";
 import { DetectedObject } from "@tensorflow-models/coco-ssd";
 
 export interface DetectionEvent {
   id: string;
-  type: "detection" | "detected" | "warning" | "alert";
+  type: "detection" | "detected" | "warning" | "alert" | "info";
   message: string;
   timestamp: Date;
   key?: string;
@@ -21,13 +21,17 @@ function roundScore(score: number) {
   return (Math.round(score * 100) / 100) * 100;
 }
 
-export default function EventLogger({ events }: { events: DetectionEvent[] }) {
-  const onClearEvents = () => {
-    // setEvents([]);
-  };
-
+export default function EventLogger({
+  events,
+  onClearEvents,
+}: {
+  events: DetectionEvent[];
+  onClearEvents: () => void;
+}) {
   const getEventIcon = (type: DetectionEvent["type"]) => {
     switch (type) {
+      case "info":
+        return <Info className="h-4 w-4" />;
       case "detection":
         return <Eye className="h-4 w-4" />;
       case "detected":
@@ -43,8 +47,10 @@ export default function EventLogger({ events }: { events: DetectionEvent[] }) {
 
   const getEventBadgeVariant = (type: DetectionEvent["type"]) => {
     switch (type) {
-      case "detection":
+      case "info":
         return "secondary";
+      case "detection":
+        return "default";
       case "detected":
         return "destructive";
       case "warning":
@@ -118,20 +124,20 @@ export default function EventLogger({ events }: { events: DetectionEvent[] }) {
                     </p>
                     <p className="flex gap-1 text-sm text-foreground break-words">
                       {event.people?.map((person) => (
-                        <div
+                        <span
                           key={person.score}
                           className="border border-red-500 p-1 rounded w-20"
                         >
                           🧍‍♂️ {roundScore(person.score)}%
-                        </div>
+                        </span>
                       ))}
                       {event.dogs?.map((dog) => (
-                        <div
+                        <span
                           key={dog.score}
                           className="border border-green-500 p-1 rounded w-20"
                         >
                           🐶 {roundScore(dog.score)}%
-                        </div>
+                        </span>
                       ))}
                     </p>
                   </div>

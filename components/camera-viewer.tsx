@@ -17,6 +17,8 @@ export default function CameraViewer({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const poopingDetectorRef = useRef<PoopingDetector | null>(null);
+
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,8 +29,6 @@ export default function CameraViewer({
     dogs?: DetectedObject[]
   ) => {
     const key = [type, people?.length, dogs?.length].join(",");
-
-    console.log({ key });
 
     const newEvent: DetectionEvent = {
       id: _.times(16, () => ((Math.random() * 0xf) << 0).toString(16)).join(""),
@@ -45,27 +45,26 @@ export default function CameraViewer({
 
   const startCamera = async () => {
     try {
+      logEvent("detection", "Camera - Detection Started");
       setError(null);
-      logEvent("detection", "Camera detection started");
-
-      // Stop existing stream if any
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
-      }
 
       if (videoRef.current) {
         setIsStreaming(true);
 
         const poopingDetector = new PoopingDetector({
           videoElement: videoRef.current,
-        });
-
-        await poopingDetector.init();
-        await poopingDetector.start({
-          onEvent: (people: DetectedObject[], dogs: DetectedObject[]) => {
+          onEvent: (message: string) => {
+            logEvent("info", message);
+          },
+          onDetected: (people: DetectedObject[], dogs: DetectedObject[]) => {
             logEvent("detected", "Camera - Object Detected", people, dogs);
           },
         });
+
+        await poopingDetector.init();
+        await poopingDetector.start();
+
+        poopingDetectorRef.current = poopingDetector;
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
@@ -93,17 +92,13 @@ export default function CameraViewer({
   };
 
   const stopCamera = () => {
-    console.log("stopCamera");
+    if (poopingDetectorRef.current) {
+      poopingDetectorRef.current.stop();
+    }
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
     setIsStreaming(false);
-    logEvent("detection", "Camera detection stopped");
+
+    logEvent("detection", "Camera - Detection Stopped");
   };
 
   useEffect(() => {
@@ -131,13 +126,8 @@ export default function CameraViewer({
             </Alert>
           )}
 
-          <div className="relative bg-black rounded-lg overflow-hidden aspect-video">
-            <video
-              ref={videoRef}
-              className="w-full h-full object-cover"
-              playsInline
-              muted
-            />
+          <div className="relative bg-black rounded-lg">
+            <video ref={videoRef} className="w-full" playsInline muted />
             {!isStreaming && (
               <div className="absolute inset-0 flex items-center justify-center bg-muted">
                 <div className="text-center">
