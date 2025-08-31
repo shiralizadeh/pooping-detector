@@ -62,7 +62,7 @@ export default function CameraViewer({
         });
 
         await poopingDetector.init();
-        await poopingDetector.start();
+        await poopingDetector.startDetection();
 
         poopingDetectorRef.current = poopingDetector;
       }
@@ -93,7 +93,7 @@ export default function CameraViewer({
 
   const stopCamera = () => {
     if (poopingDetectorRef.current) {
-      poopingDetectorRef.current.stop();
+      poopingDetectorRef.current.stopDetection();
     }
 
     setIsStreaming(false);

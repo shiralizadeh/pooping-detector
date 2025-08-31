@@ -45,15 +45,22 @@ export class PoopingDetector {
   async setupCamera() {
     this.onEvent("Setup Camera Access");
 
-    const constraints = {
-      video: true,
-      audio: false,
-    };
+    await new Promise(async (resolve) => {
+      const constraints = {
+        video: true,
+        audio: false,
+      };
 
-    this.videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+      // Request Camera Access
+      this.videoStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-    this.videoElement.srcObject = this.videoStream;
-    this.videoElement.play();
+      this.videoElement.addEventListener("loadeddata", () => {
+        resolve(null);
+      });
+
+      this.videoElement.srcObject = this.videoStream;
+      this.videoElement.play();
+    });
 
     this.onEvent("Camera Access is ready");
 
@@ -62,7 +69,10 @@ export class PoopingDetector {
 
   async setupModel() {
     this.onEvent("Load CocoSSD Model");
+
+    // Load Model
     this.model = await CocoSSD.load();
+
     this.onEvent("CocoSSD Model is ready");
 
     return this.model;
@@ -80,8 +90,6 @@ export class PoopingDetector {
         item.class == "potted plant" && item.score >= 0.6
     );
 
-    console.log(predictions.map((item) => item.class).toString());
-
     return {
       isDetected: people.length > 0 && dogs.length > 0,
       people,
@@ -89,7 +97,7 @@ export class PoopingDetector {
     };
   }
 
-  async start() {
+  async startDetection() {
     this.isActive = true;
 
     const detect = async () => {
@@ -104,42 +112,41 @@ export class PoopingDetector {
         this.onDetected(people, dogs);
       }
 
-      console.log(predictions);
-
-      this.draw(people, dogs);
+      this.drawAreas(people, dogs);
 
       requestAnimationFrame(() => detect());
     };
 
-    this.videoElement.addEventListener("loadeddata", () => {
-      detect();
-    });
+    detect();
   }
 
-  draw(people: DetectedObject[], dogs: DetectedObject[]) {
+  drawAreas(people: DetectedObject[], dogs: DetectedObject[]) {
     this.videoElement.parentElement
       ?.querySelectorAll(`[data-class]`)
       .forEach((item) => this.videoElement.parentElement?.removeChild(item));
 
-    [...people, ...dogs].forEach((person) => {
+    const draw = (color: string) => (item) => {
       const div = document.createElement("div");
 
-      div.setAttribute("data-class", person.class);
+      div.setAttribute("data-class", item.class);
 
       div.style.position = "absolute";
 
-      div.style.backgroundColor = "rgba(255, 255, 0, 0.25)";
+      div.style.backgroundColor = color;
       div.style.border = "2px solid white";
       div.style.borderRadius = "8px";
 
-      div.style.left = person.bbox[0] + "px";
-      div.style.top = person.bbox[1] + "px";
+      div.style.left = item.bbox[0] + "px";
+      div.style.top = item.bbox[1] + "px";
 
-      div.style.width = person.bbox[2] + "px";
-      div.style.height = person.bbox[3] + "px";
+      div.style.width = item.bbox[2] + "px";
+      div.style.height = item.bbox[3] + "px";
 
       this.videoElement.parentElement?.appendChild(div);
-    });
+    };
+
+    people.forEach(draw("rgba(255, 191, 0, 0.25)"));
+    dogs.forEach(draw("rgba(232, 63, 111, 0.25)"));
   }
 
   cleanUp() {
@@ -148,7 +155,7 @@ export class PoopingDetector {
       .forEach((item) => this.videoElement.parentElement?.removeChild(item));
   }
 
-  async stop() {
+  async stopDetection() {
     this.cleanUp();
     this.isActive = false;
 
