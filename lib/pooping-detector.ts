@@ -87,7 +87,7 @@ export class PoopingDetector {
     const dogs = _.filter(
       predictions,
       (item: DetectedObject) =>
-        item.class == "potted plant" && item.score >= 0.6
+        item.class == "dog" && item.score >= 0.6
     );
 
     return {
